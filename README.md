@@ -95,8 +95,11 @@ about 12 minutes.
    (state bucket, lock table, budget, deploy role). If the deploy later fails with
    `Not authorized to perform sts:AssumeRoleWithWebIdentity`, also pass
    `github_repo_ids` (the subject in CloudTrail's `AssumeRoleWithWebIdentity` event).
-2. Repository variables: `AWS_ROLE_ARN`, `AWS_REGION`, `TF_STATE_BUCKET`
-   (optional overrides are listed in `deploy.yml`).
+2. In your GitHub repo, under Settings > Secrets and variables > Actions >
+   Variables (or with `gh variable set`), set `AWS_ROLE_ARN` and
+   `TF_STATE_BUCKET` (the bootstrap's `deploy_role_arn` and `state_bucket`
+   outputs) and `AWS_REGION`. `SIMULATION_BASE_TAG` is set in step 4; optional
+   overrides are listed in `deploy.yml`.
 3. Create the ECR repositories:
 
    ```bash
@@ -107,8 +110,10 @@ about 12 minutes.
      -target=aws_ecr_repository.simulation -target=aws_ecr_repository.postprocess
    ```
 
-4. Run the `docker-openfoam` workflow and set `SIMULATION_BASE_TAG` to the
-   `base-<sha>` tag it prints. Every push to `main` then deploys.
+4. Run the `docker-openfoam` workflow (Actions tab), then, in the same place as
+   step 2 (Settings > Secrets and variables > Actions > Variables, or with
+   `gh variable set`), set `SIMULATION_BASE_TAG` to the `base-<sha>` tag it
+   prints in its run summary. Every push to `main` then deploys.
 
 **C. Your AWS account, from a laptop** (your own AWS credentials, no GitHub):
 
