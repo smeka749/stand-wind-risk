@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn>=0.29
+psycopg[binary]>=3.1
+httpx>=0.27
+pytest>=8.0
+# Increment 5: S3 artifact upload/download + presigned URLs (API + workers).
+boto3>=1.34

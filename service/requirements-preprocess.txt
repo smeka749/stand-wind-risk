@@ -1,0 +1,7 @@
+# PreProcess worker only -- NOT the API image (see README, Increment 2).
+# Same versions as the SME project's requirements.txt.
+pdal>=3.4.0
+numpy>=1.26
+pyproj>=3.6
+trimesh>=4.0
+fast-simplification>=0.1

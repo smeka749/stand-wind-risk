@@ -1,0 +1,56 @@
+[
+  {
+    "project": "GA_Statewide_B2_2018",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/GA_Statewide_B2_2018/ept.json",
+    "latlon_bbox": [-85.63, 33.55, -83.79, 35.02],
+    "notes": "Covers downtown Atlanta. GA_Central_* tiles claim to cover it too but their EPT axis-aligned bounds overstate actual coverage — statewide is the reliable pick."
+  },
+  {
+    "project": "CA_SanFrancisco_1_B23",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/CA_SanFrancisco_1_B23/ept.json",
+    "latlon_bbox": [-122.51, 37.71, -122.32, 37.85],
+    "notes": "SF proper (small tight-bounds project)."
+  },
+  {
+    "project": "MA_CentralEastern_1_2021",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/MA_CentralEastern_1_2021/ept.json",
+    "latlon_bbox": [-72.04, 42.02, -70.55, 43.16],
+    "notes": "Boston metro."
+  },
+  {
+    "project": "USGS_LPC_IL_4County_Cook_2017_LAS_2019",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/USGS_LPC_IL_4County_Cook_2017_LAS_2019/ept.json",
+    "latlon_bbox": [-88.36, 41.60, -87.39, 42.30],
+    "notes": "Cook County, IL — Chicago."
+  },
+  {
+    "project": "CA_SantaClaraCounty_2020",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/CA_SantaClaraCounty_2020/ept.json",
+    "latlon_bbox": [-122.27, 36.85, -121.16, 37.53],
+    "notes": "Santa Clara County and the Peninsula."
+  },
+  {
+    "project": "FL_Peninsular_FDEM_PalmBeach_2019",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_FDEM_PalmBeach_2019/ept.json",
+    "latlon_bbox": [-80.89, 26.32, -80.01, 26.97],
+    "notes": "Palm Beach County."
+  },
+  {
+    "project": "FL_Peninsular_FDEM_Sarasota_2018",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_FDEM_Sarasota_2018/ept.json",
+    "latlon_bbox": [-82.67, 26.93, -82.06, 27.4],
+    "notes": "Sarasota County."
+  },
+  {
+    "project": "FL_HurricaneMichael_7_2020",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_HurricaneMichael_7_2020/ept.json",
+    "latlon_bbox": [-86.0, 29.61, -84.9, 30.47],
+    "notes": "Bay County, FL — Panama City."
+  },
+  {
+    "project": "FL_Peninsular_FDEM_StLucie_2018",
+    "ept_url": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/FL_Peninsular_FDEM_StLucie_2018/ept.json",
+    "latlon_bbox": [-80.69, 27.19, -80.19, 27.57],
+    "notes": "St. Lucie County."
+  }
+]

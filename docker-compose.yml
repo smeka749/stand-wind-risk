@@ -1,0 +1,94 @@
+# Wind Risk Pipeline, local Docker run (no AWS). From the repo root:
+#   docker compose up --build -d db api
+#   curl localhost:8000/health
+#   curl -X POST localhost:8000/quotes -H 'Content-Type: application/json' \
+#     -d '{"address": "1265 Lands End Rd, Lantana, FL 33462"}'
+#   docker compose run --rm preprocess
+#   docker compose run --rm simulation
+#   docker compose run --rm postprocess
+#   curl localhost:8000/quotes/<quote_id>
+#   docker compose down        # add -v to wipe Postgres data + work volume
+#
+# db runs service/db/schema.sql on first init of an empty pgdata volume.
+# simulation is linux/amd64 (OpenFOAM packages); on Apple Silicon it runs
+# under emulation, so local timings are not representative.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: windrisk
+      POSTGRES_PASSWORD: windrisk
+      POSTGRES_DB: windrisk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./service/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U windrisk -d windrisk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: service/Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://windrisk:windrisk@db:5432/windrisk
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  preprocess:
+    build:
+      context: .
+      dockerfile: service/Dockerfile.preprocess
+    environment:
+      DATABASE_URL: postgresql://windrisk:windrisk@db:5432/windrisk
+      SME_DIR: /opt/sme
+      LOG_LEVEL: INFO
+    volumes:
+      - work:/app/work
+    depends_on:
+      db:
+        condition: service_healthy
+
+  simulation:
+    platform: linux/amd64
+    shm_size: "1gb"   # OpenMPI shared memory; the 64 MB default is too small
+    build:
+      context: .
+      dockerfile: service/Dockerfile.openfoam
+    environment:
+      DATABASE_URL: postgresql://windrisk:windrisk@db:5432/windrisk
+      SME_DIR: /opt/sme
+      LOG_LEVEL: INFO
+    volumes:
+      - work:/app/work
+    depends_on:
+      db:
+        condition: service_healthy
+
+  postprocess:
+    build:
+      context: .
+      dockerfile: service/Dockerfile.postprocess
+    environment:
+      DATABASE_URL: postgresql://windrisk:windrisk@db:5432/windrisk
+      SME_DIR: /opt/sme
+      LOG_LEVEL: INFO
+    volumes:
+      - work:/app/work
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  work:
+

@@ -1,0 +1,30 @@
+# PreProcess worker. PDAL comes from conda-forge (micromamba): Debian 12+ and
+# Ubuntu 24.04 arm64 have no pdal package, and Ubuntu 22.04's PDAL 2.3 is too
+# old for pip pdal>=3.4. Never pip-install pdal here; it would try to build
+# against a missing system PDAL.
+FROM mambaorg/micromamba:2-ubuntu24.04
+USER root
+RUN mkdir -p /app/work && chown -R $MAMBA_USER:$MAMBA_USER /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+USER $MAMBA_USER
+# numpy/pyproj from conda too, so they match the PDAL build.
+RUN micromamba install -y -n base -c conda-forge \
+    python=3.12 \
+    pdal \
+    python-pdal \
+    numpy \
+    pyproj \
+    && micromamba clean --all --yes
+WORKDIR /app
+COPY --chown=$MAMBA_USER:$MAMBA_USER service/requirements.txt service/requirements-preprocess.txt ./
+# Skip pdal/numpy/pyproj from pip; conda already installed them.
+RUN micromamba run -n base pip install --no-cache-dir -r requirements.txt \
+    && grep -v -E '^(pdal|numpy|pyproj)' requirements-preprocess.txt > requirements-preprocess-pip.txt \
+    && micromamba run -n base pip install --no-cache-dir -r requirements-preprocess-pip.txt
+COPY --chown=$MAMBA_USER:$MAMBA_USER service/app ./app
+COPY --chown=$MAMBA_USER:$MAMBA_USER service/db ./db
+COPY --chown=$MAMBA_USER:$MAMBA_USER wind-risk-take-home /opt/sme
+ENV PYTHONUNBUFFERED=1 SME_DIR=/opt/sme
+CMD ["python", "-m", "app.worker", "--stage", "PreProcess", "--once"]

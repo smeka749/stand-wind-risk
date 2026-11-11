@@ -1,0 +1,9 @@
+# Build context is stand-take-home/; keep local envs, caches and
+# archives out of it (they are large and not needed in any image).
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.DS_Store
+**/*.zip
+**/work
+**/quotes.db

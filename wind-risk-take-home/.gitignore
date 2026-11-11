@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.env
+.DS_Store
+.claude/
+
+# OpenFOAM case artifacts
+processor*/
+postProcessing/
+constant/polyMesh/
+[1-9]*/
+log.*
+*.foam
+
+# Applicant scratch
+scratch/
+out/
+*.png
+*.json
+!package.json
+!usgs_3dep_catalog.json
+!reference/*.json

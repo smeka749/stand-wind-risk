@@ -1,0 +1,43 @@
+# Earlier increments and archives (kept locally, not part of the repo)
+stand-increment-*/
+*.zip
+.service_symlink_old
+
+# Local run output
+work/
+**/work/
+cmp/
+out/
+*.mp4
+*.log
+quotes.db
+**/quotes.db
+
+# Python / tooling
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+.DS_Store
+**/.DS_Store
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+
+# Superseded Dockerfile variants (delete before submitting)
+service/Dockerfile.*_BAK*
+service/Dockerfile.*_OLD
+service/Dockerfile.*_PDAL_ISSUES
+service/Dockerfile.*_WORKING
+service/Dockerfile.*_CLAUDE
+
+# Old README backup (delete when no longer needed)
+README.old.md
+cambridge-logs/
+scratch/

@@ -1,0 +1,12 @@
+pdal>=3.4.0
+numpy>=1.26
+pyproj>=3.6
+trimesh>=4.0
+fast-simplification>=0.1
+
+fluidfoam>=0.2.5
+
+pyvista>=0.44
+matplotlib>=3.8
+imageio>=2.31
+imageio-ffmpeg>=0.5

@@ -1,0 +1,31 @@
+# PostProcess worker (score.py, then render.py). Renders headless on the CPU
+# via OSMesa: VTK_DEFAULT_OPENGL_WINDOW selects it; PYVISTA_USE_OSMESA only
+# feeds render.py's render_backend log field. Pinned to bookworm for libgl1.
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libosmesa6 libglu1-mesa libxrender1 libsm6 libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV VTK_DEFAULT_OPENGL_WINDOW=vtkOSOpenGLRenderWindow \
+    PYVISTA_USE_OSMESA=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY service/requirements.txt service/requirements-postprocess.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-postprocess.txt
+
+# Fail the build, not the first quote, if headless MP4 rendering is broken.
+RUN python -c "import pyvista as pv; \
+p = pv.Plotter(off_screen=True, window_size=(640, 368)); \
+p.add_mesh(pv.Sphere()); p.open_movie('/tmp/smoke.mp4', framerate=30); \
+[p.write_frame() for _ in range(5)]; p.close(); \
+print('headless render OK:', type(p.ren_win).__name__ if p.ren_win else 'closed')" \
+    && rm -f /tmp/smoke.mp4
+
+COPY service/app ./app
+COPY service/db ./db
+COPY wind-risk-take-home /opt/sme
+RUN mkdir -p /app/work
+
+ENV SME_DIR=/opt/sme
+CMD ["python", "-m", "app.worker", "--stage", "PostProcess", "--once"]

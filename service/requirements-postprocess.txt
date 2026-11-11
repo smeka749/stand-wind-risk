@@ -1,0 +1,9 @@
+# PostProcess worker image only (Increment 4). The API image does
+# not need these, and the PreProcess worker does not either.
+# From the SME project's requirements.txt, postprocess section.
+fluidfoam>=0.2.5
+numpy>=1.26
+pyvista>=0.44
+matplotlib>=3.8
+imageio>=2.31
+imageio-ffmpeg>=0.5

@@ -1,0 +1,46 @@
+# Simulation worker: OpenFOAM v2412 (ESI) + OpenMPI on Ubuntu 22.04.
+# openfoam-base is slow (~10-15 min) and built rarely by docker-openfoam.yml;
+# deploy.yml builds only the final stage on top of it (--build-arg BASE_IMAGE).
+# v2412 packages come from openSUSE OBS home:openfoam, not dl.openfoam.org
+# (that is the Foundation repo, which has no openfoam2412).
+ARG BASE_IMAGE=openfoam-base
+
+FROM ubuntu:22.04 AS openfoam-base
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG OPENFOAM_REPO=https://download.opensuse.org/repositories/home:/openfoam/xUbuntu_22.04
+RUN curl -fsSL "${OPENFOAM_REPO}/Release.key" \
+        | gpg --dearmor -o /usr/share/keyrings/openfoam.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/openfoam.gpg] ${OPENFOAM_REPO}/ /" \
+        > /etc/apt/sources.list.d/openfoam.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        openfoam2412-default openmpi-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+# CMA single-copy fails under Docker's default seccomp and kills the solver.
+# The 64 MB default /dev/shm is too small for MPI (compose: shm_size).
+ENV OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+    OMPI_MCA_btl_vader_single_copy_mechanism=none
+
+# Fail the build, not the first quote, if the install is wrong.
+RUN bash -c "source /usr/lib/openfoam/openfoam2412/etc/bashrc \
+    && command -v blockMesh snappyHexMesh simpleFoam decomposePar reconstructPar mpirun \
+    && echo 'openfoam2412 OK'"
+
+
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY service/requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
+COPY service/app ./app
+COPY service/db ./db
+COPY wind-risk-take-home /opt/sme
+RUN mkdir -p /app/work
+
+ENV SME_DIR=/opt/sme PYTHONUNBUFFERED=1
+CMD ["bash", "-c", "source /usr/lib/openfoam/openfoam2412/etc/bashrc && exec python3 -m app.worker --stage Simulation --once"]

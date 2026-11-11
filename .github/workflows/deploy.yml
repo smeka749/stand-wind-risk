@@ -1,0 +1,135 @@
+name: deploy
+# Push to main -> test -> build + push images -> terraform apply -> smoke test.
+# AWS access is via GitHub OIDC (no stored keys): the role in vars.AWS_ROLE_ARN
+# trusts only pushes to main in this repo (see bootstrap/).
+#
+# Repository variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   AWS_ROLE_ARN, AWS_REGION, TF_STATE_BUCKET   required
+#   SIMULATION_BASE_TAG                         required: base-<sha> pushed by docker-openfoam.yml
+#   ALERT_EMAIL                                 optional: alarm notifications
+#   SIMULATION_CAPACITY, SIMULATION_INSTANCE_TYPES, SIMULATION_MAX_VCPUS,
+#   SIMULATION_JOB_VCPUS, SIMULATION_JOB_MEMORY_MIB, SIMULATION_NP, FARGATE_MAX_VCPUS
+#                                               optional: account-size overrides
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reference_check:
+        description: "Run the real pipeline for the reference addresses and gate on +/-2"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service
+    # Real Postgres: the store under test is the production store.
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: windrisk, POSTGRES_PASSWORD: windrisk, POSTGRES_DB: windrisk }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U windrisk" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://windrisk:windrisk@localhost:5432/windrisk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -q
+
+  deploy:
+    needs: test
+    # Skipped (not failed) until the repo is configured for an AWS account.
+    if: vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.sha }}
+      TF_VAR_image_tag: ${{ github.sha }}
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_simulation_capacity: ${{ vars.SIMULATION_CAPACITY || 'EC2' }}
+      TF_VAR_simulation_instance_types: ${{ vars.SIMULATION_INSTANCE_TYPES || '["c6i.4xlarge"]' }}
+      TF_VAR_simulation_max_vcpus: ${{ vars.SIMULATION_MAX_VCPUS || '800' }}
+      TF_VAR_simulation_job_vcpus: ${{ vars.SIMULATION_JOB_VCPUS || '16' }}
+      TF_VAR_simulation_job_memory_mib: ${{ vars.SIMULATION_JOB_MEMORY_MIB || '28672' }}
+      TF_VAR_simulation_np: ${{ vars.SIMULATION_NP || '16' }}
+      TF_VAR_fargate_max_vcpus: ${{ vars.FARGATE_MAX_VCPUS || '16' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v4
+
+      # amd64 images (Fargate and the c6i instances are x86), all tagged with
+      # the commit SHA so every deploy runs exactly this commit's code. The
+      # simulation image is only our code on top of the pinned OpenFOAM base
+      # (SIMULATION_BASE_TAG, from docker-openfoam.yml), so it builds in seconds.
+      - name: Build and push images
+        env:
+          BASE_TAG: ${{ vars.SIMULATION_BASE_TAG }}
+        run: |
+          if [ -z "$BASE_TAG" ]; then
+            echo "SIMULATION_BASE_TAG is not set: run the docker-openfoam workflow first"; exit 1
+          fi
+          REG=${{ steps.ecr.outputs.registry }}
+          for img in api preprocess postprocess simulation; do
+            dockerfile=service/Dockerfile.$img; args=()
+            if [ $img = simulation ]; then
+              dockerfile=service/Dockerfile.openfoam
+              args=(--build-arg BASE_IMAGE=$REG/wind-risk-prod-simulation:$BASE_TAG)
+            fi
+            docker buildx build --platform linux/amd64 -f $dockerfile "${args[@]}" \
+              -t $REG/wind-risk-prod-$img:$TAG \
+              --cache-from type=gha,scope=$img --cache-to type=gha,mode=max,scope=$img \
+              --push .
+          done
+
+      - uses: hashicorp/setup-terraform@v4
+        with: { terraform_version: "1.17.1", terraform_wrapper: false }
+      - name: Terraform apply
+        working-directory: service/infra
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}"
+          terraform apply -input=false -auto-approve
+
+      - name: Smoke test
+        working-directory: service/infra
+        run: |
+          API=$(terraform output -raw api_url)
+          echo "API: $API"
+          for i in $(seq 1 30); do
+            if curl -fsS "$API/health"; then echo; echo "healthy"; exit 0; fi
+            sleep 10
+          done
+          echo "API did not become healthy within 5 minutes"; exit 1
+
+      # Manual runs only: real PreProcess -> Simulation -> PostProcess in AWS,
+      # up to 30 min. Off on every push so deploys stay fast.
+      - name: Reference-score check
+        if: github.event_name == 'workflow_dispatch' && inputs.reference_check
+        run: |
+          API=$(terraform -chdir=service/infra output -raw api_url)
+          python3 service/scripts/check_reference_scores.py --api "$API"

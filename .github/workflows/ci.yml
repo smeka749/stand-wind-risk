@@ -1,0 +1,53 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service
+    # Real Postgres: the store under test is the production store.
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: windrisk, POSTGRES_PASSWORD: windrisk, POSTGRES_DB: windrisk }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U windrisk" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://windrisk:windrisk@localhost:5432/windrisk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -q
+      # The runner has no PDAL/OpenFOAM, so with no scores/ the gate reports
+      # "not evaluated" rather than passing. The real check runs in deploy.yml.
+      - run: |
+          if ls scores/*.json >/dev/null 2>&1; then
+            python scripts/check_reference_scores.py
+          else
+            echo "reference gate not evaluated: no scores/ files in this run"
+          fi
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with: { terraform_version: "1.17.1" }
+      - run: terraform fmt -check -recursive
+        working-directory: service/infra
+      # No credentials, no apply: init without a backend, validate only.
+      - run: terraform init -backend=false -input=false
+        working-directory: service/infra
+      - run: terraform validate
+        working-directory: service/infra
+  docker-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Build only, no push. The slow OpenFOAM base is docker-openfoam.yml.
+      - uses: docker/setup-buildx-action@v4
+      - run: docker build -f service/Dockerfile.api -t wind-risk-api .

@@ -1,0 +1,30 @@
+name: docker-openfoam
+# Manual only: builds the OpenFOAM v2412 *base* image (the slow part: solver,
+# MPI, Python; no app code), pushes it to ECR as base-<sha>, and prints the tag
+# to set as the SIMULATION_BASE_TAG repository variable. deploy.yml builds the
+# simulation worker on top of it on every push. Rerun only to change the solver,
+# then run deploy with the reference check to confirm scores still match.
+on: [workflow_dispatch]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v4
+      - run: |
+          docker buildx build --platform linux/amd64 -f service/Dockerfile.openfoam \
+            --target openfoam-base \
+            -t ${{ steps.ecr.outputs.registry }}/wind-risk-prod-simulation:base-${{ github.sha }} \
+            --push .
+          echo "Set the SIMULATION_BASE_TAG repository variable to base-${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
